@@ -1,0 +1,28 @@
+db.users.update(
+	{login: "NEmpa"},
+	{
+		$set: {
+			assets: [
+				{EUR: '200'},
+				{ETH: '0.02'},
+			]
+		}
+	}
+)
+
+
+//while(cur.)
+
+	//var allUsers []user;
+	//var tmp user;
+	/*
+	for _, a := range results {
+		tmp._ID = a[0].Value.(primitive.ObjectID)	//id
+		tmp.Login = a[1].Value.(string)
+		tmp.Password = a[2].Value.(string)
+		tmp.IsAdmin = a[3].Value.(bool)
+		println(reflect.TypeOf(a[4].Value))
+
+		allUsers = append(allUsers, tmp)
+	}
+	*/

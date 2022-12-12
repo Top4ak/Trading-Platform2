@@ -1,0 +1,30 @@
+curl http://localhost:8000/users
+###
+curl http://localhost:8000/admin
+###
+curl http://localhost:8001/admin/assets
+###
+
+curl http://localhost:8000/register \
+    --include \
+    --header "Content-Type: application/json" \
+    --request "POST" \
+    --data '{"login": "notADmin666", "password": "pagGFD3le"}'
+
+###
+
+curl http://localhost:8000/login \
+    --include \
+    --header "Content-Type: application/json" \
+    --request "GET" \
+    --data '{"login": "hacker", "password": "pa3le"}'
+
+###
+curl http://localhost:8000/check
+
+###
+curl http://localhost:8000/deposit \
+    --include \
+    --header "Content-Type: application/json" \
+    --request "POST" \
+    --data '{"asset": "EUR", "amount": 200.00}'
