@@ -33,6 +33,14 @@ type asset struct {
 	Fiat	 	bool 		`json:"fiat"`
 }
 
+type assetName struct {
+	Name string `json:"name"`
+}
+
+type checkFiatResponse struct {
+	Result bool `json:"result"`
+}
+
 var client *mongo.Client
 var collection *mongo.Collection
 
@@ -63,6 +71,28 @@ func addAsset(c *gin.Context) {
 	c.IndentedJSON(http.StatusBadRequest, "Asset already created")
 }
 
+func checkFiat(c *gin.Context) {
+	var checkName assetName
+	var result asset
+	var resp checkFiatResponse
+
+	err := c.BindJSON(&checkName)
+	if err != nil { log.Fatal(err); return; }
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err = collection.FindOne(ctx, bson.M{"name": checkName.Name}).Decode(&result)
+	resp.Result = result.Fiat
+	if err == mongo.ErrNoDocuments { 
+		resp.Result = false 
+	} else { 
+		if err != nil { log.Fatal(err); return; } 
+	}
+
+	c.IndentedJSON(http.StatusCreated, resp)
+}
+
 func main() {
 	router := gin.Default()
 
@@ -81,6 +111,7 @@ func main() {
 	collection = client.Database("assetsSevices").Collection("assets")
 	//collection = client.Database("newdb").Collection("assets")
 
+	router.GET("/assets/fiat", checkFiat)
 	router.POST("/admin/assets", addAsset)
 	router.Run("localhost:8001")
 }
