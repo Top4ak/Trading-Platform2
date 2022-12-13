@@ -2,8 +2,12 @@ package main
 
 import (
 	//"bytes"
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
+
+	//"fmt"
 	"io/ioutil"
 
 	//"fmt"
@@ -45,12 +49,32 @@ var client *mongo.Client
 var collection *mongo.Collection
 
 func addAsset(c *gin.Context) {
-	// there should be a check for the admin, but something went wrong
+	cookie, err := c.Request.Cookie("csrftoken")
+	if err != nil { log.Fatal(err) }
+
+	//check for the admin
+
+	values := map[string]string{"userid": cookie.Value}
+	json_data, err := json.Marshal(values)
+	if err != nil { log.Fatal(err); }
+	resp, err := http.Post("http://localhost:8000/admin", "application/json", bytes.NewBuffer(json_data))
+	if err != nil { log.Fatal(err); }
+
+	var res map[string]interface{}
+
+	json.NewDecoder(resp.Body).Decode(&res)
+
+	if(!res["isadmin"].(bool)) {
+		c.IndentedJSON(http.StatusNotAcceptable, "You do not have enough rights .-.")
+		return
+	}
+
+	//add asset
 
 	var newAsset asset
 	var checkAssets asset
 
-	err := c.BindJSON(&newAsset)
+	err = c.BindJSON(&newAsset)
 	if err != nil { log.Fatal(err); return; }
 	
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -63,7 +87,6 @@ func addAsset(c *gin.Context) {
 		_, err := collection.InsertOne(ctx, newAsset)
 		if(err != nil) { log.Fatal(err); return; }
 
-		fmt.Println("kek");
 		c.IndentedJSON(http.StatusCreated, http.StatusCreated)
 		return
 	}
@@ -77,6 +100,7 @@ func checkFiat(c *gin.Context) {
 	var resp checkFiatResponse
 
 	err := c.BindJSON(&checkName)
+	fmt.Println(checkName.Name)
 	if err != nil { log.Fatal(err); return; }
 	
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -89,7 +113,7 @@ func checkFiat(c *gin.Context) {
 	} else { 
 		if err != nil { log.Fatal(err); return; } 
 	}
-
+	fmt.Println(resp.Result)
 	c.IndentedJSON(http.StatusCreated, resp)
 }
 
@@ -111,7 +135,7 @@ func main() {
 	collection = client.Database("assetsSevices").Collection("assets")
 	//collection = client.Database("newdb").Collection("assets")
 
-	router.GET("/assets/fiat", checkFiat)
+	router.POST("/assets/fiat", checkFiat)
 	router.POST("/admin/assets", addAsset)
 	router.Run("localhost:8001")
 }

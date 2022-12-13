@@ -1,7 +1,9 @@
 package main
 
 import (
+	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"log"
@@ -43,8 +45,8 @@ type registerResponse struct {
 	UserId interface{} `json:"userId"`
 }
 
-type loginResponse struct {
-	UserId string `json:"userId"`
+type userIdResponse struct {
+	UserId string `json:"userid"`
 }
 
 type myError struct {
@@ -76,22 +78,6 @@ func getUsers(c *gin.Context) {
 	if err = cur.All(context.TODO(), &results); err != nil {
 		log.Fatal(err)
 	}
-
-	//while(cur.)
-
-	//var allUsers []user;
-	//var tmp user;
-	/*
-		for _, a := range results {
-			tmp._ID = a[0].Value.(primitive.ObjectID)	//id
-			tmp.Login = a[1].Value.(string)
-			tmp.Password = a[2].Value.(string)
-			tmp.IsAdmin = a[3].Value.(bool)
-			println(reflect.TypeOf(a[4].Value))
-
-			allUsers = append(allUsers, tmp)
-		}
-	*/
 	c.IndentedJSON(http.StatusOK, results)
 }
 
@@ -146,7 +132,6 @@ func loginUser(c *gin.Context) {
 	userDB._ID = tmp[0].Value.(primitive.ObjectID)
 	userDB.Login = tmp[1].Value.(string)
 	userDB.Password = tmp[2].Value.(string)
-	//println(reflect.TypeOf(tmp[3].Value.(primitive.E)))
 
 	if userDB.Password != logUser.Password {
 		c.IndentedJSON(http.StatusNotFound, myError{"Invalid password"})
@@ -157,7 +142,7 @@ func loginUser(c *gin.Context) {
 	cookie := http.Cookie{Name: "csrftoken", Value: userDB._ID.Hex(), Expires: expiration}
 
 	http.SetCookie(c.Writer, &cookie)
-	c.IndentedJSON(http.StatusOK, loginResponse{userDB._ID.Hex()})
+	c.IndentedJSON(http.StatusOK, userIdResponse{userDB._ID.Hex()})
 
 	cok, err := c.Request.Cookie("csrftoken")
 	fmt.Println(cok)
@@ -165,11 +150,24 @@ func loginUser(c *gin.Context) {
 
 func depositAsset(c *gin.Context) {
 	cookie, err := c.Request.Cookie("csrftoken")
+	fmt.Println(cookie.Value)
 	errorCheck(err)
 
 	var newDeposit depositRequest
 	err = c.BindJSON(&newDeposit)
 	errorCheck(err)
+
+	values := map[string]string{"name": newDeposit.Asset}
+	json_data, err := json.Marshal(values)
+	if err != nil { log.Fatal(err); }
+	resp, err := http.Post("http://localhost:8001/assets/fiat", "application/json", bytes.NewBuffer(json_data))
+	if err != nil { log.Fatal(err); }
+
+	var res map[string]interface{}
+
+	json.NewDecoder(resp.Body).Decode(&res)
+
+	fmt.Println(res["result"])
 
 	//asset service
 
@@ -180,6 +178,8 @@ func depositAsset(c *gin.Context) {
 	//err = collection.FindOne(ctx, bson.M{"login": logUser.Login}).Decode(&tmp)
 
 	//update := bson.M{"$set": bson.M{"asset": newDeposit.Asset}}
+
+	/*
 	update := bson.D{
 		{Key: "$set", Value: bson.D{{Key: "asset", Value: newDeposit.Asset}, {Key: "amount", Value: newDeposit.Amount}}},
 	}
@@ -192,19 +192,14 @@ func depositAsset(c *gin.Context) {
 
 	fmt.Println(updateRes.UpsertedID)
 	fmt.Println(updateRes.ModifiedCount)
+	*/
 }
 
 func isAdmin(c *gin.Context) {
-	cookie, err := c.Request.Cookie("csrftoken")
-	if err != nil {
-		if err == http.ErrNoCookie {
-			log.Println("Error finding cookie: ", err)
-		}
-		log.Fatal(err)
-		return
-	}
-	fmt.Println(cookie.Value)
-	objId, err := primitive.ObjectIDFromHex(cookie.Value)
+	var checkId userIdResponse
+	err := c.BindJSON(&checkId)
+
+	objId, err := primitive.ObjectIDFromHex(checkId.UserId)
 	if err != nil {
 		log.Fatal(err)
 		return
@@ -212,21 +207,17 @@ func isAdmin(c *gin.Context) {
 	filter := bson.M{"_id": bson.M{"$eq": objId}}
 
 	var res user
+	res.IsAdmin = false
 	collection.FindOne(context.Background(), filter).Decode(&res)
-	c.IndentedJSON(http.StatusOK, res.IsAdmin)
-	/*
-		if(res.IsAdmin) {
-			c.IndentedJSON(http.StatusOK, res.IsAdmin)
-		} else {
-			c.IndentedJSON(http.StatusOK, res.IsAdmin)
-		}*/
+	fmt.Println(res)
+	c.IndentedJSON(http.StatusOK, res)
 }
 
 func checkCookie(c *gin.Context) {
 	cok, err := c.Request.Cookie("csrftoken")
 	errorCheck(err)
 	fmt.Println(cok.Value)
-	c.IndentedJSON(http.StatusOK, loginResponse{})
+	c.IndentedJSON(http.StatusOK, userIdResponse{})
 }
 
 func main() {
@@ -266,6 +257,6 @@ func main() {
 	router.POST("/register", createUser)
 	router.POST("/deposit", depositAsset)
 	router.GET("/check", checkCookie)
-	router.GET("/admin", isAdmin)
+	router.POST("/admin", isAdmin)
 	router.Run("localhost:8000")
 }
