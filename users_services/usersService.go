@@ -142,13 +142,12 @@ func loginUser(c *gin.Context) {
 	http.SetCookie(c.Writer, &cookie)
 	c.IndentedJSON(http.StatusOK, userIdResponse{userDB._ID.Hex()})
 
-	cok, err := c.Request.Cookie("csrftoken")
-	fmt.Println(cok)
+	//cok, err := c.Request.Cookie("csrftoken")
+	//fmt.Println(cok)
 }
 
 func depositAsset(c *gin.Context) {
 	cookie, err := c.Request.Cookie("csrftoken")
-	fmt.Println(cookie.Value)
 	errorCheck(err)
 
 	var newDeposit depositRequest
@@ -164,8 +163,6 @@ func depositAsset(c *gin.Context) {
 	var res map[string]interface{}
 
 	json.NewDecoder(resp.Body).Decode(&res)
-
-	fmt.Println(res["result"])
 
 	if(newDeposit.Amount >= 2000) {
 		c.IndentedJSON(http.StatusBadRequest, "The deposit is too big (maximum 2000)")
@@ -195,18 +192,14 @@ func depositAsset(c *gin.Context) {
 	err = collection.FindOne(ctx, filter).Decode(&tmp)
 	if err != nil { log.Fatal(err) }
 
-	fmt.Println(tmp[4].Value.(primitive.A)[0])
 	var assetsUpdate []float64
 	assetsUpdate = append(assetsUpdate, tmp[4].Value.(primitive.A)[0].(float64) + newDeposit.Amount)
 	assetsUpdate = append(assetsUpdate, tmp[4].Value.(primitive.A)[1].(float64))
 
 
 	update := bson.D{{Key: "$set", Value: bson.D{{Key: "assets", Value: assetsUpdate}}}}
-	updateRes, err := collection.UpdateOne(ctx, filter, update) //updatebyid doesnt work .-.
+	_, err = collection.UpdateOne(ctx, filter, update) //updatebyid doesnt work .-.
 	if err != nil { log.Fatal(err) }
-
-	fmt.Println(updateRes.UpsertedID)
-	fmt.Println(updateRes.ModifiedCount)
 }
 
 func isAdmin(c *gin.Context) {
