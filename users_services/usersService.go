@@ -7,10 +7,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
-
 	//"reflect"
-
-	//"reflect"
+	
 	"time"
 
 	"net/http"
@@ -159,9 +157,9 @@ func depositAsset(c *gin.Context) {
 
 	values := map[string]string{"name": newDeposit.Asset}
 	json_data, err := json.Marshal(values)
-	if err != nil { log.Fatal(err); }
+	if err != nil { log.Fatal(err) }
 	resp, err := http.Post("http://localhost:8001/assets/fiat", "application/json", bytes.NewBuffer(json_data))
-	if err != nil { log.Fatal(err); }
+	if err != nil { log.Fatal(err) }
 
 	var res map[string]interface{}
 
@@ -169,30 +167,46 @@ func depositAsset(c *gin.Context) {
 
 	fmt.Println(res["result"])
 
-	//asset service
-
-	//ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
-	//defer cancel()
-
-	//var tmp bson.D
-	//err = collection.FindOne(ctx, bson.M{"login": logUser.Login}).Decode(&tmp)
-
-	//update := bson.M{"$set": bson.M{"asset": newDeposit.Asset}}
-
-	/*
-	update := bson.D{
-		{Key: "$set", Value: bson.D{{Key: "asset", Value: newDeposit.Asset}, {Key: "amount", Value: newDeposit.Amount}}},
+	if(newDeposit.Amount >= 2000) {
+		c.IndentedJSON(http.StatusBadRequest, "The deposit is too big (maximum 2000)")
+		return
 	}
-	//update := bson.M{"$set": bson.A{bson.D{{"asset", newDeposit.Asset}, {"amount", newDeposit.Amount}}}}
+	if(newDeposit.Amount <= 0) {
+		c.IndentedJSON(http.StatusBadRequest, "The deposit is too small")
+		return
+	}
+	if(!res["result"].(bool)) {
+		c.IndentedJSON(http.StatusBadRequest, "Currency is not fiat")
+		return
+	}
+
+	//asset service
+	//There is something very crooked and bad.
+	//0 - EUR
+	//1 - ETH
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var tmp bson.D
 	objId, err := primitive.ObjectIDFromHex(cookie.Value)
-	fmt.Println(objId)
 	filter := bson.M{"_id": bson.M{"$eq": objId}}
-	updateRes, err := collection.UpdateOne(context.Background(), filter, update) //updatebyid doesnt work .-.
-	errorCheck(err)
+	if err != nil { log.Fatal(err) }
+	err = collection.FindOne(ctx, filter).Decode(&tmp)
+	if err != nil { log.Fatal(err) }
+
+	fmt.Println(tmp[4].Value.(primitive.A)[0])
+	var assetsUpdate []float64
+	assetsUpdate = append(assetsUpdate, tmp[4].Value.(primitive.A)[0].(float64) + newDeposit.Amount)
+	assetsUpdate = append(assetsUpdate, tmp[4].Value.(primitive.A)[1].(float64))
+
+
+	update := bson.D{{Key: "$set", Value: bson.D{{Key: "assets", Value: assetsUpdate}}}}
+	updateRes, err := collection.UpdateOne(ctx, filter, update) //updatebyid doesnt work .-.
+	if err != nil { log.Fatal(err) }
 
 	fmt.Println(updateRes.UpsertedID)
 	fmt.Println(updateRes.ModifiedCount)
-	*/
 }
 
 func isAdmin(c *gin.Context) {
