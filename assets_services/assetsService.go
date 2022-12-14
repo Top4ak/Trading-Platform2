@@ -1,26 +1,15 @@
 package main
 
 import (
-	//"bytes"
 	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
-
-	//"fmt"
+	
 	"io/ioutil"
-
-	//"fmt"
 	"net/http"
-
-	//"fmt"
 	"log"
-	//"reflect"
-
-	//"reflect"
 	"time"
-
-	//"net/http"
 	//"net/url"
 
 	"github.com/gin-gonic/gin"
@@ -45,27 +34,31 @@ type checkFiatResponse struct {
 	Result bool `json:"result"`
 }
 
+type myError struct {
+	Error string `json:"error"`
+}
+
 var client *mongo.Client
 var collection *mongo.Collection
 
 func addAsset(c *gin.Context) {
 	cookie, err := c.Request.Cookie("csrftoken")
-	if err != nil { log.Fatal(err) }
+	if err != nil { log.Fatal(err); return }
 
 	//check for the admin
 
 	values := map[string]string{"userid": cookie.Value}
 	json_data, err := json.Marshal(values)
-	if err != nil { log.Fatal(err); }
+	if err != nil { c.IndentedJSON(http.StatusNotAcceptable, err); return }
 	resp, err := http.Post("http://localhost:8000/admin", "application/json", bytes.NewBuffer(json_data))
-	if err != nil { log.Fatal(err); }
+	if err != nil { c.IndentedJSON(http.StatusNotAcceptable, err); return }
 
 	var res map[string]interface{}
 
 	json.NewDecoder(resp.Body).Decode(&res)
 
 	if(!res["isadmin"].(bool)) {
-		c.IndentedJSON(http.StatusNotAcceptable, "You do not have enough rights .-.")
+		c.IndentedJSON(http.StatusNotAcceptable, myError{"You do not have enough rights .-."})
 		return
 	}
 
@@ -121,19 +114,18 @@ func main() {
 	router := gin.Default()
 
 	content, err := ioutil.ReadFile("../dbConnectorURI.txt")
-	if err != nil { log.Fatal(err); }
+	if err != nil { log.Fatal(err) }
 
 	client, err := mongo.NewClient(options.Client().ApplyURI(string(content)))	
-	if err != nil { log.Fatal(err); }
+	if err != nil { log.Fatal(err) }
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	err = client.Connect(ctx)
-	if err != nil { log.Fatal(err); }
+	if err != nil { log.Fatal(err) }
 	defer client.Disconnect(ctx)
 
 	collection = client.Database("assetsSevices").Collection("assets")
-	//collection = client.Database("newdb").Collection("assets")
 
 	router.POST("/assets/fiat", checkFiat)
 	router.POST("/admin/assets", addAsset)

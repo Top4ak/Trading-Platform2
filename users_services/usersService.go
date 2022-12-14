@@ -39,12 +39,25 @@ type depositRequest struct {
 	Amount float64 `json:"amount"`
 }
 
+type eventDepositRequest struct {
+	Event 		string 	`json:"event"`
+	UserId    	string	`json:"userid"`
+	Asset 		string 	`json:"asset"`
+	Amount		float64	`json:"amount"`
+}
+
 type registerResponse struct {
-	UserId interface{} `json:"userId"`
+	UserId interface{} `json:"userid"`
 }
 
 type userIdResponse struct {
 	UserId string `json:"userid"`
+}
+
+type depositResponse struct {
+	UserId 	string `json:"userid"`
+	EUR 	float64 `json:"eur"`
+	ETH		float64 `json:"eth"`
 }
 
 type myError struct {
@@ -165,15 +178,15 @@ func depositAsset(c *gin.Context) {
 	json.NewDecoder(resp.Body).Decode(&res)
 
 	if(newDeposit.Amount >= 2000) {
-		c.IndentedJSON(http.StatusBadRequest, "The deposit is too big (maximum 2000)")
+		c.IndentedJSON(http.StatusBadRequest, myError{"The deposit is too big (maximum 2000)"})
 		return
 	}
 	if(newDeposit.Amount <= 0) {
-		c.IndentedJSON(http.StatusBadRequest, "The deposit is too small")
+		c.IndentedJSON(http.StatusBadRequest, myError{"The deposit is too small"})
 		return
 	}
 	if(!res["result"].(bool)) {
-		c.IndentedJSON(http.StatusBadRequest, "Currency is not fiat")
+		c.IndentedJSON(http.StatusBadRequest, myError{"Currency is not fiat"})
 		return
 	}
 
@@ -200,6 +213,16 @@ func depositAsset(c *gin.Context) {
 	update := bson.D{{Key: "$set", Value: bson.D{{Key: "assets", Value: assetsUpdate}}}}
 	_, err = collection.UpdateOne(ctx, filter, update) //updatebyid doesnt work .-.
 	if err != nil { log.Fatal(err) }
+
+	var depResp depositResponse
+	depResp = depositResponse{cookie.Value, assetsUpdate[0], assetsUpdate[1]}
+
+	eventRequest := eventDepositRequest{"NEW DEPOSIT", cookie.Value, "EUR", newDeposit.Amount}
+	json_data, err = json.Marshal(eventRequest)
+	if err != nil { c.IndentedJSON(http.StatusNotAcceptable, err); return }
+	_, err = http.Post("http://localhost:8002/event/deposit", "application/json", bytes.NewBuffer(json_data)) //sending request to event service
+
+	c.IndentedJSON(http.StatusAccepted, depResp)
 }
 
 func isAdmin(c *gin.Context) {
@@ -223,8 +246,7 @@ func isAdmin(c *gin.Context) {
 func checkCookie(c *gin.Context) {
 	cok, err := c.Request.Cookie("csrftoken")
 	errorCheck(err)
-	fmt.Println(cok.Value)
-	c.IndentedJSON(http.StatusOK, userIdResponse{})
+	c.IndentedJSON(http.StatusOK, userIdResponse{cok.Value})
 }
 
 func main() {
