@@ -214,15 +214,15 @@ func depositAsset(c *gin.Context) {
 	_, err = collection.UpdateOne(ctx, filter, update) //updatebyid doesnt work .-.
 	if err != nil { log.Fatal(err) }
 
-	var depResp depositResponse
-	depResp = depositResponse{cookie.Value, assetsUpdate[0], assetsUpdate[1]}
-
 	eventRequest := eventDepositRequest{"NEW DEPOSIT", cookie.Value, "EUR", newDeposit.Amount}
 	json_data, err = json.Marshal(eventRequest)
 	if err != nil { c.IndentedJSON(http.StatusNotAcceptable, err); return }
 	_, err = http.Post("http://localhost:8002/event/deposit", "application/json", bytes.NewBuffer(json_data)) //sending request to event service
 
-	c.IndentedJSON(http.StatusAccepted, depResp)
+
+	var depResp depositResponse
+	depResp = depositResponse{cookie.Value, assetsUpdate[0], assetsUpdate[1]}
+	c.IndentedJSON(http.StatusOK, depResp)
 }
 
 func isAdmin(c *gin.Context) {
