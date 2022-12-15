@@ -7,8 +7,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+
 	//"reflect"
-	
+
 	"time"
 
 	"net/http"
@@ -106,7 +107,7 @@ func createUser(c *gin.Context) {
 
 	var checkDB user
 	err = collection.FindOne(ctx, bson.M{"login": newUser.Login}).Decode(&checkDB)
-	newUser.Assets = append(newUser.Assets, 100)
+	newUser.Assets = append(newUser.Assets, 100)		//registration bonus
 	newUser.Assets = append(newUser.Assets, 0.02)
 	newUser.IsAdmin = false
 	if err == mongo.ErrNoDocuments {
@@ -243,6 +244,30 @@ func isAdmin(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, res)
 }
 
+func checkAssets(c *gin.Context) {
+	var checkId userIdResponse
+	err := c.BindJSON(&checkId)
+	if(err != nil) { log.Fatal(err) }
+
+	objId, err := primitive.ObjectIDFromHex(checkId.UserId)
+	if err != nil {
+		log.Fatal(err)
+		return
+	}
+	filter := bson.M{"_id": bson.M{"$eq": objId}}
+
+	var tmp bson.D
+	var res depositResponse
+	collection.FindOne(context.Background(), filter).Decode(&tmp)
+	fmt.Println(res)
+
+	res.UserId = checkId.UserId
+	res.EUR = tmp[4].Value.(primitive.A)[0].(float64)
+	res.ETH = tmp[4].Value.(primitive.A)[1].(float64)
+
+	c.IndentedJSON(http.StatusOK, res)
+}
+
 func checkCookie(c *gin.Context) {
 	cok, err := c.Request.Cookie("csrftoken")
 	errorCheck(err)
@@ -287,5 +312,6 @@ func main() {
 	router.POST("/deposit", depositAsset)
 	router.GET("/check", checkCookie)
 	router.POST("/admin", isAdmin)
+	router.POST("/assets", checkAssets)
 	router.Run("localhost:8000")
 }

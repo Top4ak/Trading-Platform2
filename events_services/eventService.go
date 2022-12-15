@@ -3,7 +3,7 @@ package main
 import (
 	//"bytes"
 	"context"
-	"fmt"
+	//"fmt"
 	"net/http"
 
 	//"encoding/json"
@@ -36,7 +36,6 @@ type depositEvent struct {
 func deposit(c *gin.Context) {
 	var dep depositEvent
 	err := c.BindJSON(&dep)
-	fmt.Println(dep)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
