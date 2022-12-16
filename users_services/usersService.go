@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"log"
 
@@ -73,18 +72,12 @@ var albums = []user{
 var client *mongo.Client
 var collection *mongo.Collection
 
-func errorCheck(err error) {
-	if err != nil {
-		log.Fatal(err)
-	}
-}
-
 func getUsers(c *gin.Context) {
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
 	cur, err := collection.Find(ctx, bson.D{})
-	errorCheck(err)
+	if err != nil { log.Fatal(err); return }
 
 	var results []user
 	if err = cur.All(context.TODO(), &results); err != nil {
@@ -96,7 +89,7 @@ func getUsers(c *gin.Context) {
 func createUser(c *gin.Context) {
 	var newUser user
 	err := c.BindJSON(&newUser)
-	errorCheck(err)
+	if err != nil { log.Fatal(err); return }
 	if len([]rune(newUser.Login)) < 4 || len([]rune(newUser.Password)) < 4 {
 		c.IndentedJSON(http.StatusBadRequest, myError{"Username or password must contain at least 4 characters"})
 		return
@@ -113,21 +106,24 @@ func createUser(c *gin.Context) {
 	if err == mongo.ErrNoDocuments {
 
 		res, err := collection.InsertOne(ctx, newUser)
-		errorCheck(err)
+		if err != nil { log.Fatal(err); return }
 
+		expiration := time.Now().Add(3 * 24 * time.Hour)
+		cookie := http.Cookie{Name: "csrftoken", Value: res.InsertedID.(primitive.ObjectID).Hex(), Expires: expiration}
+		http.SetCookie(c.Writer, &cookie)
 		c.IndentedJSON(http.StatusCreated, registerResponse{res.InsertedID})
 		return
 	}
 	if err == nil {
 		c.IndentedJSON(http.StatusBadRequest, myError{"Username is not available"})
 	}
-	errorCheck(err)
+	if err != nil { log.Fatal(err); return }
 }
 
 func loginUser(c *gin.Context) {
 	var logUser user
 	err := c.BindJSON(&logUser)
-	errorCheck(err)
+	if err != nil { log.Fatal(err); return }
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -138,7 +134,7 @@ func loginUser(c *gin.Context) {
 		c.IndentedJSON(http.StatusNotFound, myError{"Username does not exist"})
 		return
 	}
-	errorCheck(err)
+	if err != nil { log.Fatal(err); return }
 	var userDB user
 
 	userDB._ID = tmp[0].Value.(primitive.ObjectID)
@@ -162,11 +158,11 @@ func loginUser(c *gin.Context) {
 
 func depositAsset(c *gin.Context) {
 	cookie, err := c.Request.Cookie("csrftoken")
-	errorCheck(err)
+	if err != nil { log.Fatal(err); return }
 
 	var newDeposit depositRequest
 	err = c.BindJSON(&newDeposit)
-	errorCheck(err)
+	if err != nil { log.Fatal(err); return }
 
 	values := map[string]string{"name": newDeposit.Asset}
 	json_data, err := json.Marshal(values)
@@ -270,7 +266,7 @@ func isAdmin(c *gin.Context) {
 	var res user
 	res.IsAdmin = false
 	collection.FindOne(context.Background(), filter).Decode(&res)
-	fmt.Println(res)
+	//fmt.Println(res)
 	c.IndentedJSON(http.StatusOK, res)
 }
 
@@ -296,41 +292,28 @@ func checkAssets(c *gin.Context) {
 
 func checkCookie(c *gin.Context) {
 	cok, err := c.Request.Cookie("csrftoken")
-	errorCheck(err)
+	if err != nil { log.Fatal(err); return }
 	c.IndentedJSON(http.StatusOK, userIdResponse{cok.Value})
 }
 
 func main() {
 	router := gin.Default()
-	//replace password before git commit
+
 	content, err := ioutil.ReadFile("../dbConnectorURI.txt")
-	if err != nil {
-		log.Fatal(err)
-	}
+	if err != nil { log.Fatal(err); return }
 	client, err := mongo.NewClient(options.Client().ApplyURI(string(content)))
-	errorCheck(err)
+	if err != nil { log.Fatal(err); return }
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 	err = client.Connect(ctx)
-	errorCheck(err)
+	if err != nil { log.Fatal(err); return }
 	defer client.Disconnect(ctx)
 
 	err = client.Ping(ctx, readpref.Primary())
-	errorCheck(err)
-
-	databases, err := client.ListDatabaseNames(ctx, bson.M{})
-	errorCheck(err)
-
-	fmt.Println(databases)
+	if err != nil { log.Fatal(err); return }
 
 	collection = client.Database("mongo").Collection("users")
-
-	//var nw = user{Login: "Vasja", Password: "ranbluat"}
-	//res, err := collection.InsertOne(context.Background(), nw)
-	//id := res.InsertedID
-
-	//fmt.Println(id)
 
 	router.POST("/assets/change", assetsChanging)
 	router.GET("/login", loginUser)

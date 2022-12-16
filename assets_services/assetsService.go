@@ -4,9 +4,6 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
-
-	//"fmt"
 
 	"io/ioutil"
 	"log"
@@ -143,15 +140,12 @@ func addAsset(c *gin.Context) {
 
 
 func checkSymbol(c *gin.Context) {
-	fmt.Println("kek")
 	var checkName symbolsName
 	var result symbolsName
 	var resp checkResponse
 
 	err := c.BindJSON(&checkName)
-	fmt.Println("kek")
 	if err != nil { log.Fatal(err); return; }
-	fmt.Println(checkName.Symbol)
 	
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
