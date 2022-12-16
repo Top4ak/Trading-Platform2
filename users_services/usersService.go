@@ -226,15 +226,45 @@ func depositAsset(c *gin.Context) {
 	c.IndentedJSON(http.StatusOK, depResp)
 }
 
+func assetsChanging(c *gin.Context) {
+	var newAsset eventDepositRequest
+
+	err := c.BindJSON(&newAsset)
+	if err != nil { log.Fatal(err); return }
+
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	var tmp bson.D
+	objId, err := primitive.ObjectIDFromHex(newAsset.UserId)
+	filter := bson.M{"_id": bson.M{"$eq": objId}}
+	if err != nil { log.Fatal(err) }
+	err = collection.FindOne(ctx, filter).Decode(&tmp)
+	if err != nil { log.Fatal(err) }
+
+	var assetsUpdate []float64
+	assetsUpdate = append(assetsUpdate, tmp[4].Value.(primitive.A)[0].(float64))
+	assetsUpdate = append(assetsUpdate, tmp[4].Value.(primitive.A)[1].(float64))
+
+	if(newAsset.Asset == "EUR") {
+		assetsUpdate[0] -= newAsset.Amount
+	} else if(newAsset.Asset == "ETH") {
+		assetsUpdate[1] = newAsset.Amount
+	}
+
+
+	fmt.Println(newAsset.UserId)
+	fmt.Println(newAsset.Amount)
+	fmt.Println(newAsset.Asset)
+
+}
+
 func isAdmin(c *gin.Context) {
 	var checkId userIdResponse
 	err := c.BindJSON(&checkId)
 
 	objId, err := primitive.ObjectIDFromHex(checkId.UserId)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
+	if err != nil { log.Fatal(err); return }
 	filter := bson.M{"_id": bson.M{"$eq": objId}}
 
 	var res user
@@ -247,19 +277,15 @@ func isAdmin(c *gin.Context) {
 func checkAssets(c *gin.Context) {
 	var checkId userIdResponse
 	err := c.BindJSON(&checkId)
-	if(err != nil) { log.Fatal(err) }
+	if(err != nil) { log.Fatal(err); return }
 
 	objId, err := primitive.ObjectIDFromHex(checkId.UserId)
-	if err != nil {
-		log.Fatal(err)
-		return
-	}
+	if err != nil { log.Fatal(err); return }
 	filter := bson.M{"_id": bson.M{"$eq": objId}}
 
 	var tmp bson.D
 	var res depositResponse
 	collection.FindOne(context.Background(), filter).Decode(&tmp)
-	fmt.Println(res)
 
 	res.UserId = checkId.UserId
 	res.EUR = tmp[4].Value.(primitive.A)[0].(float64)
@@ -306,6 +332,7 @@ func main() {
 
 	//fmt.Println(id)
 
+	router.POST("/assets/change", assetsChanging)
 	router.GET("/login", loginUser)
 	router.GET("/users", getUsers)
 	router.POST("/register", createUser)

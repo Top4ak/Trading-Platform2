@@ -4,12 +4,15 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"fmt"
+
 	//"fmt"
-	
+
 	"io/ioutil"
-	"net/http"
 	"log"
+	"net/http"
 	"time"
+
 	//"net/url"
 
 	"github.com/gin-gonic/gin"
@@ -140,17 +143,20 @@ func addAsset(c *gin.Context) {
 
 
 func checkSymbol(c *gin.Context) {
+	fmt.Println("kek")
 	var checkName symbolsName
 	var result symbolsName
 	var resp checkResponse
 
 	err := c.BindJSON(&checkName)
+	fmt.Println("kek")
 	if err != nil { log.Fatal(err); return; }
+	fmt.Println(checkName.Symbol)
 	
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
 
-	err = collection.FindOne(ctx, bson.M{"symbol": checkName.Symbol}).Decode(&result)
+	err = collectionSymbols.FindOne(ctx, bson.M{"symbol": checkName.Symbol}).Decode(&result)
 	if err == mongo.ErrNoDocuments { 
 		resp.Result = false 
 	} else { 
@@ -202,5 +208,6 @@ func main() {
 	router.POST("/assets/fiat", checkFiat)
 	router.POST("/admin/assets", addAsset)
 	router.POST("/admin/symbols", addSymbol)
+	router.POST("/check/symbols", checkSymbol)
 	router.Run("localhost:8001")
 }

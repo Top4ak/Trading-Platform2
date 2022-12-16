@@ -27,7 +27,7 @@ import (
 
 type order struct {
 	_id 		primitive.ObjectID 	`json:"_id"`
-	UserId		string				`json:"userid"`
+	UserId		primitive.ObjectID	`json:"userid"`
 	Side 		string				`json:"side"`
 	Status 		string 				`json:"status"`
 	Symbol 		string				`json:"symbol"`
@@ -50,7 +50,10 @@ func createOrder(c *gin.Context) {
 	var newOrder order
 	err = c.BindJSON(&newOrder)
 	if(err != nil) { log.Fatal(err); return; }
-	fmt.Println(newOrder)
+
+	newOrder.Status = "ACTIVE"
+	newOrder.UserId, err = primitive.ObjectIDFromHex(cookie.Value)
+	if(err != nil) { log.Fatal(err); return; }
 
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
 	defer cancel()
@@ -66,21 +69,43 @@ func createOrder(c *gin.Context) {
 	json.NewDecoder(resp.Body).Decode(&res)
 
 	fmt.Println(res)
+	var assetOperation string
 	if(newOrder.Side == "BUY") {
 		if(newOrder.Quantity * newOrder.Price > res["eur"].(float64)) {
 			c.IndentedJSON(http.StatusBadRequest, myError{"Not enough funds"})
 			return
 		}
+		assetOperation = "EUR"
 	} else if(newOrder.Side == "SELL") {
 		if(newOrder.Quantity > res["eth"].(float64)) {
 			c.IndentedJSON(http.StatusBadRequest, myError{"Not enough funds"})
 			return
 		}
+		assetOperation = "ETH"
 	} else {
 		c.IndentedJSON(http.StatusNotAcceptable, myError{"Side not correct"})
 		return
 	}
 
+	newvalues := map[string]string{"symbol": newOrder.Symbol}
+	json_data, err = json.Marshal(newvalues)
+	if err != nil { c.IndentedJSON(http.StatusNotAcceptable, err); return }
+	resp, err = http.Post("http://localhost:8001/check/symbols", "application/json", bytes.NewBuffer(json_data))
+	if err != nil { c.IndentedJSON(http.StatusNotAcceptable, err); return }
+	json.NewDecoder(resp.Body).Decode(&res)
+
+	if(!res["result"].(bool)) {
+		c.IndentedJSON(http.StatusBadRequest, myError{"This couple does not exist."})
+		return;
+	} 
+
+	newValues := map[string]interface{}{"userid": cookie.Value, "asset": assetOperation, "amount": newOrder.Quantity}
+	json_data, err = json.Marshal(newValues)
+	if err != nil { c.IndentedJSON(http.StatusNotAcceptable, err); return }
+	resp, err = http.Post("http://localhost:8000/assets/change", "application/json", bytes.NewBuffer(json_data))
+	if err != nil { c.IndentedJSON(http.StatusNotAcceptable, err); return }
+
+	fmt.Println(assetOperation)
 	_, err = collection.InsertOne(ctx, newOrder)
 	if(err != nil) { log.Fatal(err); return; }
 
