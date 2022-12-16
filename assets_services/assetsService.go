@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
-	"fmt"
+	//"fmt"
 	
 	"io/ioutil"
 	"net/http"
@@ -30,7 +30,11 @@ type assetName struct {
 	Name string `json:"name"`
 }
 
-type checkFiatResponse struct {
+type symbolsName struct {
+	Symbol string `json:"symbol"`
+}
+
+type checkResponse struct {
 	Result bool `json:"result"`
 }
 
@@ -40,6 +44,53 @@ type myError struct {
 
 var client *mongo.Client
 var collection *mongo.Collection
+var collectionSymbols *mongo.Collection
+
+func addSymbol(c *gin.Context) {
+	cookie, err := c.Request.Cookie("csrftoken")
+	if err != nil { log.Fatal(err); return }
+
+	//check for the admin
+
+	values := map[string]string{"userid": cookie.Value}
+	json_data, err := json.Marshal(values)
+	if err != nil { c.IndentedJSON(http.StatusNotAcceptable, err); return }
+	resp, err := http.Post("http://localhost:8000/admin", "application/json", bytes.NewBuffer(json_data))
+	if err != nil { c.IndentedJSON(http.StatusNotAcceptable, err); return }
+
+	var res map[string]interface{}
+
+	json.NewDecoder(resp.Body).Decode(&res)
+
+	if(!res["isadmin"].(bool)) {
+		c.IndentedJSON(http.StatusNotAcceptable, myError{"You do not have enough rights .-."})
+		return
+	}
+
+	//add symbol
+
+	var newSymbol symbolsName
+	var checkSymbol symbolsName
+
+	err = c.BindJSON(&newSymbol)
+	if err != nil { log.Fatal(err); return; }
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err = collectionSymbols.FindOne(ctx, bson.M{"symbol": newSymbol.Symbol}).Decode(&checkSymbol)
+
+	if err == mongo.ErrNoDocuments {
+
+		_, err := collectionSymbols.InsertOne(ctx, newSymbol)
+		if(err != nil) { log.Fatal(err); return; }
+
+		c.IndentedJSON(http.StatusCreated, "Symbol created")
+		return
+	}
+	if(err != nil) { log.Fatal(err); return; }
+	c.IndentedJSON(http.StatusBadRequest, "Symbol already created")
+}
 
 func addAsset(c *gin.Context) {
 	cookie, err := c.Request.Cookie("csrftoken")
@@ -80,20 +131,41 @@ func addAsset(c *gin.Context) {
 		_, err := collection.InsertOne(ctx, newAsset)
 		if(err != nil) { log.Fatal(err); return; }
 
-		c.IndentedJSON(http.StatusCreated, http.StatusCreated)
+		c.IndentedJSON(http.StatusCreated, "Asset created")
 		return
 	}
 	if(err != nil) { log.Fatal(err); return; }
 	c.IndentedJSON(http.StatusBadRequest, "Asset already created")
 }
 
+
+func checkSymbol(c *gin.Context) {
+	var checkName symbolsName
+	var result symbolsName
+	var resp checkResponse
+
+	err := c.BindJSON(&checkName)
+	if err != nil { log.Fatal(err); return; }
+	
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+
+	err = collection.FindOne(ctx, bson.M{"symbol": checkName.Symbol}).Decode(&result)
+	if err == mongo.ErrNoDocuments { 
+		resp.Result = false 
+	} else { 
+		if err != nil { log.Fatal(err); return; } 
+		resp.Result = true
+	}
+	c.IndentedJSON(http.StatusCreated, resp)
+}
+
 func checkFiat(c *gin.Context) {
 	var checkName assetName
 	var result asset
-	var resp checkFiatResponse
+	var resp checkResponse
 
 	err := c.BindJSON(&checkName)
-	fmt.Println(checkName.Name)
 	if err != nil { log.Fatal(err); return; }
 	
 	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
@@ -106,7 +178,6 @@ func checkFiat(c *gin.Context) {
 	} else { 
 		if err != nil { log.Fatal(err); return; } 
 	}
-	fmt.Println(resp.Result)
 	c.IndentedJSON(http.StatusCreated, resp)
 }
 
@@ -126,8 +197,10 @@ func main() {
 	defer client.Disconnect(ctx)
 
 	collection = client.Database("assetsSevices").Collection("assets")
+	collectionSymbols = client.Database("assetsSevices").Collection("symbols")
 
 	router.POST("/assets/fiat", checkFiat)
 	router.POST("/admin/assets", addAsset)
+	router.POST("/admin/symbols", addSymbol)
 	router.Run("localhost:8001")
 }

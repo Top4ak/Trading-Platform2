@@ -61,7 +61,6 @@ func main() {
 	defer client.Disconnect(ctx)
 
 	collection = client.Database("eventsServices").Collection("events")
-	//collection = client.Database("newdb").Collection("assets")
 
 	router.POST("/event/deposit", deposit)
 	router.Run("localhost:8002")
