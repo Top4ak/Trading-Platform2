@@ -1,2 +1,2 @@
 # Trading Platform2
- mmm
+ Trading Platform will be used by customers to place orders for financial assets.
