@@ -1,0 +1,25 @@
+curl http://localhost:8001/admin/assets \
+    --include \
+    --header "Content-Type: application/json" \
+    --request "POST" \
+    --data '{"name": "BTC", "fiat": false}'
+
+###
+curl http://localhost:8001/admin/symbols \
+    --include \
+    --header "Content-Type: application/json" \
+    --request "POST" \
+    --data '{"symbol": "ETHEUR"}'
+###
+
+curl http://localhost:8001/assets/fiat 
+    --include \
+    --header "Content-Type: application/json" \
+    --request "POST" \
+    --data '{"name": "EURR"}'
+###
+curl http://localhost:8001/check/symbols
+    --include \
+    --header "Content-Type: application/json" \
+    --request "POST" \
+    --data '{"symbol": "ETHEUR"}'

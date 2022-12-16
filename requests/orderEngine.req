@@ -1,0 +1,6 @@
+
+curl http://localhost:8003/order/create \
+    --include \
+    --header "Content-Type: application/json" \
+    --request "POST" \
+    --data '{"side": "BUY", "symbol": "ETHEUR", "type": "LIMIT", "quantity": 0.02, "price": 3000}'
