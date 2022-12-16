@@ -249,14 +249,14 @@ func assetsChanging(c *gin.Context) {
 	if(newAsset.Asset == "EUR") {
 		assetsUpdate[0] -= newAsset.Amount
 	} else if(newAsset.Asset == "ETH") {
-		assetsUpdate[1] = newAsset.Amount
+		assetsUpdate[1] -= newAsset.Amount
 	}
 
+	update := bson.D{{Key: "$set", Value: bson.D{{Key: "assets", Value: assetsUpdate}}}}
+	_, err = collection.UpdateOne(ctx, filter, update)
+	if err != nil { log.Fatal(err) }
 
-	fmt.Println(newAsset.UserId)
-	fmt.Println(newAsset.Amount)
-	fmt.Println(newAsset.Asset)
-
+	c.IndentedJSON(http.StatusOK, assetsUpdate)
 }
 
 func isAdmin(c *gin.Context) {

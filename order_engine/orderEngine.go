@@ -3,7 +3,7 @@ package main
 import (
 	"bytes"
 	"context"
-	"fmt"
+	//"fmt"
 
 	//"fmt"
 	"net/http"
@@ -68,7 +68,7 @@ func createOrder(c *gin.Context) {
 
 	json.NewDecoder(resp.Body).Decode(&res)
 
-	fmt.Println(res)
+	//fmt.Println(res)
 	var assetOperation string
 	if(newOrder.Side == "BUY") {
 		if(newOrder.Quantity * newOrder.Price > res["eur"].(float64)) {
@@ -105,7 +105,7 @@ func createOrder(c *gin.Context) {
 	resp, err = http.Post("http://localhost:8000/assets/change", "application/json", bytes.NewBuffer(json_data))
 	if err != nil { c.IndentedJSON(http.StatusNotAcceptable, err); return }
 
-	fmt.Println(assetOperation)
+	//fmt.Println(assetOperation)
 	_, err = collection.InsertOne(ctx, newOrder)
 	if(err != nil) { log.Fatal(err); return; }
 
